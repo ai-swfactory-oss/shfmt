@@ -1,0 +1,17 @@
+{
+  "name": "@ai-swfactory-oss/shfmt-darwin-x64",
+  "version": "3.14.1",
+  "description": "shfmt native binary for macOS x64: the unmodified mvdan/sh release asset shfmt_v<version>_darwin_amd64. Install @ai-swfactory-oss/shfmt instead.",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ai-swfactory-oss/shfmt.git",
+    "directory": "packages/shfmt-darwin-x64"
+  },
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "files": ["bin/shfmt", "LICENSE", "LICENSE-go"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

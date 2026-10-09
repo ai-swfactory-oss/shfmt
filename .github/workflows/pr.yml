@@ -1,0 +1,19 @@
+name: pr
+
+# Every pull request packs the packages, installs and tests them on all four
+# platforms and runs the rebuild check. Nothing is published: the publish job
+# of build.yml is skipped for pull requests, but GitHub validates the
+# permissions it requests, so they are granted here.
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
