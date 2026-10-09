@@ -118,7 +118,6 @@ jobs:
     env:
       V: ${{ needs.build.outputs.version }}
       UPSTREAM: ${{ needs.build.outputs.upstream }}
-      PREFIX: ${{ runner.temp }}/prefix
     steps:
       - uses: actions/checkout@v7
         with:
@@ -137,6 +136,8 @@ jobs:
         # Outside the checkout, so the repository's .npmrc (GitHub Packages) is not read.
         working-directory: ${{ runner.temp }}
         run: |
+          PREFIX="$RUNNER_TEMP/prefix"
+          echo "PREFIX=$PREFIX" >> "$GITHUB_ENV"
           npm install -g --prefix "$PREFIX" --no-audit --no-fund \
             "$GITHUB_WORKSPACE/dist/npm/ai-swfactory-oss-shfmt-${{ matrix.platform }}-$V.tgz" \
             "$GITHUB_WORKSPACE/dist/npm/ai-swfactory-oss-shfmt-$V.tgz"
