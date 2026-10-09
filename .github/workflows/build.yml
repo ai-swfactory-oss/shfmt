@@ -1,0 +1,257 @@
+name: build
+
+# Builds shfmt from source at the mvdan/sh tag and commit pinned in
+# upstream.json, with upstream's own build command and Go version, for linux
+# x64/arm64 and macOS x64/arm64. Compares each binary with the upstream release
+# asset's digest (reported, never blocking), packs the npm packages, installs
+# and tests them natively on each platform, then publishes every package not yet
+# in GitHub Packages, attests the build provenance of every binary and tarball,
+# and creates the GitHub release. Pull requests (this workflow called from
+# pr.yml) build and test only.
+
+on:
+  push:
+    branches: [main]
+    paths: [upstream.json, packages/**, scripts/**, .github/workflows/build.yml]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to build
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      upstream: ${{ steps.meta.outputs.upstream }}
+      matches: ${{ steps.build.outputs.matches }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Lint scripts
+        run: shellcheck scripts/*.sh
+
+      - name: Versions agree with upstream.json
+        run: scripts/check.sh
+
+      - name: Metadata
+        id: meta
+        run: |
+          source scripts/lib.sh
+          echo "version=$(package_version)" >> "$GITHUB_OUTPUT"
+          echo "upstream=$(upstream_version)" >> "$GITHUB_OUTPUT"
+          echo "go=$(go_version | sed 's/^go//')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.meta.outputs.go }}
+          cache: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Build from source and compare with the upstream release
+        id: build
+        run: |
+          scripts/build.sh
+          echo "matches=$(cat dist/matches)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### shfmt v${{ steps.meta.outputs.upstream }} built from source"
+            echo
+            cat dist/comparison.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pack
+        run: |
+          mkdir -p dist/npm
+          for pkg in packages/*/; do
+            npm pack --pack-destination dist/npm "$pkg"
+          done
+          for f in dist/npm/*.tgz; do
+            echo "== $f"; tar -tvzf "$f"
+          done
+
+      - name: SHA256SUMS
+        run: |
+          cd dist
+          { (cd assets && sha256sum shfmt_*); (cd npm && sha256sum ./*.tgz | sed 's| \./| |'); } > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: |
+            dist/assets
+            dist/npm
+            dist/SHA256SUMS
+            dist/comparison.md
+          if-no-files-found: error
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+          - runner: macos-15-intel
+            platform: darwin-x64
+          - runner: macos-15
+            platform: darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      V: ${{ needs.build.outputs.version }}
+      UPSTREAM: ${{ needs.build.outputs.upstream }}
+      PREFIX: ${{ runner.temp }}/prefix
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install the packed launcher and platform package globally
+        # Outside the checkout, so the repository's .npmrc (GitHub Packages) is not read.
+        working-directory: ${{ runner.temp }}
+        run: |
+          npm install -g --prefix "$PREFIX" --no-audit --no-fund \
+            "$GITHUB_WORKSPACE/dist/npm/ai-swfactory-oss-shfmt-${{ matrix.platform }}-$V.tgz" \
+            "$GITHUB_WORKSPACE/dist/npm/ai-swfactory-oss-shfmt-$V.tgz"
+          echo "$PREFIX/bin" >> "$GITHUB_PATH"
+
+      - name: shfmt --version
+        run: |
+          command -v shfmt
+          got=$(shfmt --version)
+          echo "$got"
+          test "$got" = "v$UPSTREAM"
+
+      - name: shfmt --to-json
+        run: |
+          out=$(echo 'a=1' | shfmt --to-json)
+          echo "$out" | head -c 400; echo
+          echo "$out" | jq -e '.Type == "File"'
+
+      - name: binaryPath() is the binary we built, and is executable
+        run: |
+          lib="$PREFIX/lib/node_modules/@ai-swfactory-oss/shfmt"
+          bin=$(node -e 'process.stdout.write(require(process.argv[1]).binaryPath())' "$lib")
+          echo "$bin"
+          test -x "$bin"
+          ls -l "$bin"
+          source scripts/lib.sh
+          test "$(sha256_of "$bin")" = "$(sha256_of "dist/assets/$(asset_name ${{ matrix.platform }})")"
+          test "$("$bin" --version)" = "v$UPSTREAM"
+          echo 'a=1' | "$bin" --to-json | jq -e '.Type == "File"'
+          test "$(node -e 'process.stdout.write(require(process.argv[1]).version)' "$lib")" = "$UPSTREAM"
+          node --input-type=module -e "import { binaryPath, version } from '$lib/index.js'; if (binaryPath() !== '$bin' || version !== '$UPSTREAM') process.exit(1)"
+
+      - name: Exit status and stderr pass through the launcher
+        run: |
+          set +e
+          echo 'if then' | shfmt >/dev/null 2>err.txt
+          status=$?
+          set -e
+          cat err.txt
+          test "$status" -ne 0
+          test -s err.txt
+
+  publish:
+    needs: [build, test]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      V: ${{ needs.build.outputs.version }}
+      UPSTREAM: ${{ needs.build.outputs.upstream }}
+      MATCHES: ${{ needs.build.outputs.matches }}
+      SHA: ${{ inputs.ref || github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: "@ai-swfactory-oss"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/assets/shfmt_*
+            dist/npm/*.tgz
+
+      - name: Publish the packages not yet published (platform packages first)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for name in shfmt-linux-x64 shfmt-linux-arm64 shfmt-darwin-x64 shfmt-darwin-arm64 shfmt; do
+            if npm view "@ai-swfactory-oss/$name@$V" version >/dev/null 2>&1; then
+              echo "@ai-swfactory-oss/$name@$V is already published"
+            else
+              npm publish --tag latest "dist/npm/ai-swfactory-oss-$name-$V.tgz"
+            fi
+          done
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v$V"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag exists"; exit 0
+          fi
+          {
+            echo "shfmt [v$UPSTREAM](https://github.com/mvdan/sh/releases/tag/v$UPSTREAM) built from source, as npm packages in GitHub Packages:"
+            echo
+            echo '```'
+            echo "npm install @ai-swfactory-oss/shfmt@$V"
+            echo '```'
+            echo
+            echo "Built in GitHub Actions from mvdan/sh \`v$UPSTREAM\` (commit \`$(jq -r .commit upstream.json)\`) with $(jq -r .go upstream.json) and upstream's release command \`CGO_ENABLED=0 go build -trimpath -ldflags=\"-w -s\" ./cmd/shfmt\`. Every binary and tarball has a build provenance attestation: \`gh attestation verify <file> --repo ${{ github.repository }}\`."
+            echo
+            echo "Comparison with the upstream release assets: $MATCHES byte-identical."
+            echo
+            cat dist/comparison.md
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } > notes.md
+          gh release create "$tag" --target "$SHA" --title "shfmt $V" --notes-file notes.md \
+            dist/assets/shfmt_* dist/npm/*.tgz dist/SHA256SUMS

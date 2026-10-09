@@ -1,0 +1,38 @@
+{
+  "name": "@ai-swfactory-oss/shfmt",
+  "version": "3.14.1",
+  "description": "shfmt (mvdan/sh) as a native binary: installs the binary for this platform, built from the upstream release tag",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ai-swfactory-oss/shfmt.git",
+    "directory": "packages/shfmt"
+  },
+  "homepage": "https://github.com/ai-swfactory-oss/shfmt#readme",
+  "keywords": ["shfmt", "shell", "formatter", "bash", "parser"],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "shfmt": "bin/shfmt.js"
+  },
+  "files": ["index.js", "index.d.ts", "bin/shfmt.js", "LICENSE", "LICENSE-go"],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@ai-swfactory-oss/shfmt-linux-x64": "3.14.1",
+    "@ai-swfactory-oss/shfmt-linux-arm64": "3.14.1",
+    "@ai-swfactory-oss/shfmt-darwin-x64": "3.14.1",
+    "@ai-swfactory-oss/shfmt-darwin-arm64": "3.14.1"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

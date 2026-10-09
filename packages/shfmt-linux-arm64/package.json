@@ -1,0 +1,17 @@
+{
+  "name": "@ai-swfactory-oss/shfmt-linux-arm64",
+  "version": "3.14.1",
+  "description": "shfmt native binary for linux arm64, built from the mvdan/sh release tag with upstream's build command. Install @ai-swfactory-oss/shfmt instead.",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ai-swfactory-oss/shfmt.git",
+    "directory": "packages/shfmt-linux-arm64"
+  },
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": ["bin/shfmt", "LICENSE", "LICENSE-go"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

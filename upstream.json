@@ -1,0 +1,24 @@
+{
+  "version": "3.14.1",
+  "revision": 0,
+  "commit": "a3f0c75d21d918756fa38de8b5d3429efde7948b",
+  "go": "go1.27.1",
+  "assets": {
+    "linux-x64": {
+      "name": "shfmt_v3.14.1_linux_amd64",
+      "upstream_sha256": "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
+    },
+    "linux-arm64": {
+      "name": "shfmt_v3.14.1_linux_arm64",
+      "upstream_sha256": "5f2db09dae91fca848f7adbdd014632e921a383863a2ad7e0450ad3aba0c6489"
+    },
+    "darwin-x64": {
+      "name": "shfmt_v3.14.1_darwin_amd64",
+      "upstream_sha256": "d33eee0da0f92835b3562e9767a05cee7e4eaeef47daa03bfd09da17b4b590a6"
+    },
+    "darwin-arm64": {
+      "name": "shfmt_v3.14.1_darwin_arm64",
+      "upstream_sha256": "b7c872db63553ccffc7253aba3ed7d4885a27d83f1ba567b1138c6315a5847e5"
+    }
+  }
+}

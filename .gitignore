@@ -1,7 +1,7 @@
 node_modules/
 dist/
 *.tgz
-# filled by scripts/fetch.sh
+# filled by scripts/build.sh
 packages/*/bin/shfmt
 packages/*/LICENSE
 packages/*/LICENSE-go
