@@ -41,7 +41,7 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Lint scripts
-        run: shellcheck scripts/*.sh
+        run: shellcheck -x scripts/*.sh
 
       - name: Versions agree with upstream.json
         run: scripts/check.sh

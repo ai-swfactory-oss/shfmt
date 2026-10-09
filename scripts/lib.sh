@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2034 # the variables are used by the scripts that source this file
 # Shared helpers, sourced by the other scripts. Requires jq.
 set -euo pipefail
 

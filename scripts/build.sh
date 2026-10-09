@@ -8,6 +8,7 @@
 # leaves the binaries in dist/assets/, and compares each with the digest of the
 # corresponding upstream release asset. A mismatch is reported, not fatal.
 # Writes the comparison to dist/comparison.md.
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 tag="v$(upstream_version)"

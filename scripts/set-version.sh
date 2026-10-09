@@ -2,6 +2,7 @@
 # Writes the version upstream.json implies into every package.json and pins the
 # launcher's optionalDependencies to it exactly. Run after editing upstream.json
 # by hand (for example to bump "revision" for a re-pack).
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 v=$(package_version)

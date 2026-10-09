@@ -2,8 +2,9 @@
 # Moves the repository to the latest mvdan/sh release: rewrites upstream.json
 # (version, the tag's commit, the Go version the release notes name, and the
 # upstream assets' sha256 from the GitHub API digests, kept for comparison with
-# our build) and the version of every package. Prints the new version, or nothing if already current.
-# Needs GH_TOKEN for the gh CLI.
+# our build) and the version of every package. Prints the new version, or
+# nothing if already current. Needs GH_TOKEN for the gh CLI.
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 release=$(gh api repos/mvdan/sh/releases/latest)

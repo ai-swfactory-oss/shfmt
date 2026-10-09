@@ -2,6 +2,7 @@
 # Fails unless every package.json carries the version upstream.json implies,
 # the launcher pins each platform package to exactly that version, and no
 # package declares an install script.
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 want=$(package_version)
