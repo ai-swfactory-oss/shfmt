@@ -1,0 +1,28 @@
+{
+  "name": "@ai-swfactory-oss/shfmt",
+  "version": "0.0.0",
+  "description": "shfmt (mvdan/sh), the shell parser, formatter and interpreter, as the unmodified native upstream binary per platform",
+  "keywords": [
+    "shfmt",
+    "shell",
+    "bash",
+    "formatter",
+    "parser"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "shfmt": "bin/shfmt.js"
+  },
+  "files": [
+    "bin/shfmt.js",
+    "index.js",
+    "index.d.ts",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

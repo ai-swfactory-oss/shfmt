@@ -1,0 +1,133 @@
+name: update
+
+# Daily: if mvdan/sh has a newer non-prerelease release, rewrite upstream.json
+# for it (asset names and the sha256 digests GitHub reports for them, repack
+# reset to 0) and open a pull request with it; the pr workflow fetches, packs and
+# installs it on every platform, and merging it publishes (build.yml runs on the
+# push to main). Then make sure the packages for main's upstream.json are
+# published: every successful publish ends with a GitHub release v<version>, so
+# a missing release means "not published yet", and a failed build is retried
+# every day until it succeeds.
+#
+# Monthly: keep the schedule alive. GitHub disables scheduled workflows after
+# 60 days without repository activity.
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+    - cron: "41 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+  actions: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    outputs:
+      missing: ${{ steps.check.outputs.missing }}
+      sha: ${{ steps.check.outputs.sha }}
+      bump: ${{ steps.bump.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Is main's version published?
+        id: check
+        run: |
+          tag="v$(bash scripts/pkgver.sh)"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "missing=false" >> "$GITHUB_OUTPUT"; echo "$tag already released"
+          else
+            echo "missing=true" >> "$GITHUB_OUTPUT"; echo "$tag not released: building"
+          fi
+
+      - name: Keepalive (monthly)
+        if: github.event.schedule == '41 5 1 * *'
+        run: gh api -X PUT "repos/$GH_REPO/actions/workflows/update.yml/enable"
+
+      - name: Follow the latest upstream release
+        id: follow
+        run: |
+          release=$(gh api repos/mvdan/sh/releases/latest)
+          if [ "$(jq -r '.prerelease or .draft' <<<"$release")" != false ]; then
+            echo "latest upstream release is a prerelease or draft: ignoring"; exit 0
+          fi
+          latest=$(jq -er '.tag_name | ltrimstr("v")' <<<"$release")
+          current=$(jq -er .version upstream.json)
+          newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n1)
+          if [ "$latest" = "$current" ] || [ "$newest" != "$latest" ]; then
+            echo "upstream $latest, ours $current: nothing to do"; exit 0
+          fi
+          echo "upstream $latest is newer than $current: updating upstream.json"
+          jq --arg v "$latest" '
+            def asset($suffix):
+              ("shfmt_v\($v)_\($suffix)") as $n
+              | (first($release[0].assets[] | select(.name == $n)) // error("asset \($n) missing"))
+              | if (.digest // "" | startswith("sha256:")) then {name: .name, digest: .digest}
+                else error("asset \($n) has no sha256 digest") end;
+            {
+              version: $v,
+              repack: 0,
+              assets: {
+                "linux-x64": asset("linux_amd64"),
+                "linux-arm64": asset("linux_arm64"),
+                "darwin-x64": asset("darwin_amd64"),
+                "darwin-arm64": asset("darwin_arm64"),
+                "win32-x64": asset("windows_amd64.exe")
+              }
+            }' --slurpfile release <(printf '%s' "$release") -n > upstream.json.new
+          mv upstream.json.new upstream.json
+          cat upstream.json
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+
+      - name: Open the bump pull request
+        id: bump
+        if: steps.follow.outputs.version != ''
+        env:
+          VERSION: ${{ steps.follow.outputs.version }}
+        run: |
+          branch="update/shfmt-$VERSION"
+          if gh pr list --head "$branch" --state open --json number --jq '.[0].number' | grep -q .; then
+            echo "pull request for $branch already open"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "chore: update shfmt to $VERSION"
+          git push --force origin "$branch"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          gh pr create --head "$branch" --base main --title "chore: update shfmt to $VERSION" \
+            --body "mvdan/sh released v$VERSION. upstream.json now pins its release assets and the sha256 digests GitHub reports for them. The update run that opened this pull request fetched, verified, packed and installed the packages on every platform (pull requests opened with GITHUB_TOKEN start no pr workflow); merging publishes them."
+
+  # A pull request opened with GITHUB_TOKEN starts no workflow, so the bump is
+  # built and tested here, on the branch the pull request carries.
+  test-bump:
+    needs: update
+    if: needs.update.outputs.bump != ''
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.update.outputs.bump }}
+      publish: false
+    secrets: inherit
+
+  build:
+    needs: update
+    if: needs.update.outputs.missing == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.update.outputs.sha }}
+      publish: true
+    secrets: inherit

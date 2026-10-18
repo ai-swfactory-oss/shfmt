@@ -1,0 +1,10 @@
+shfmt - a shell parser, formatter and interpreter (mvdan/sh)
+https://github.com/mvdan/sh
+Copyright (c) 2016, Daniel Martí. All rights reserved.
+
+shfmt is distributed under the BSD 3-Clause license (see LICENSE). It is
+provided "AS IS", without any express or implied warranties.
+
+This npm package is published by ai-swfactory-oss
+(https://github.com/ai-swfactory-oss/shfmt), which is not affiliated with the
+mvdan/sh project. The package is distributed under BSD-3-Clause.
