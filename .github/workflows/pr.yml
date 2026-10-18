@@ -1,7 +1,8 @@
 name: pr
 
-# Every pull request builds shfmt from source, packs the packages, and installs
-# and tests them on all four platforms. Nothing is published or attested: the
+# Every pull request fetches the pinned upstream shfmt binaries (sha256
+# verified), packs the packages, and installs and tests them on all five
+# platforms. Nothing is published or attested: the
 # publish job of build.yml is skipped for pull requests, but GitHub validates
 # the permissions it requests, so they are granted here.
 

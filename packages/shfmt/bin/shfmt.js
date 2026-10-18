@@ -8,16 +8,16 @@ let bin;
 try {
   bin = binaryPath();
 } catch (err) {
-  process.stderr.write(`${err.message}\n`);
+  console.error(err.message);
   process.exit(1);
 }
 
 const result = spawnSync(bin, process.argv.slice(2), { stdio: 'inherit' });
 if (result.error) {
-  process.stderr.write(`@ai-swfactory-oss/shfmt: cannot run ${bin}: ${result.error.message}\n`);
+  console.error(`@ai-swfactory-oss/shfmt: cannot run ${bin}: ${result.error.message}`);
   process.exit(1);
 }
 if (result.signal) {
   process.kill(process.pid, result.signal);
 }
-process.exit(result.status ?? 1);
+process.exit(result.status === null ? 1 : result.status);

@@ -1,8 +1,5 @@
-node_modules/
+build/
 dist/
+node_modules/
 *.tgz
-# filled by scripts/build.sh
-packages/*/bin/shfmt
-packages/*/LICENSE
-packages/*/LICENSE-go
 .claude/worktrees

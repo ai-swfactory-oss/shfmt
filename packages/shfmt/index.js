@@ -1,30 +1,76 @@
 'use strict';
 
 const path = require('node:path');
-const { version: packageVersion } = require('./package.json');
 
-const SUPPORTED = ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64'];
+const pkg = require('./package.json');
 
-/** The upstream shfmt version, without the re-pack suffix (3.14.1-r.1 -> 3.14.1). */
-const version = packageVersion.replace(/-r\.\d+$/, '');
+const SCOPE = '@ai-swfactory-oss';
+const PREFIX = `${SCOPE}/shfmt-`;
+
+/** The shfmt version this package runs: the upstream version, without any -r.N re-pack suffix. */
+const upstreamVersion = pkg.version.replace(/-r\.\d+$/, '');
+
+/** The `<os>-<cpu>` platforms a binary is published for, from the exactly pinned optional dependencies. */
+const supportedPlatforms = Object.freeze(
+  Object.keys(pkg.optionalDependencies || {})
+    .filter((name) => name.startsWith(PREFIX))
+    .map((name) => name.slice(PREFIX.length))
+);
+
+/** No shfmt binary is published for this os and cpu. */
+class UnsupportedPlatformError extends Error {
+  constructor(platform, arch) {
+    super(
+      `@ai-swfactory-oss/shfmt: no shfmt binary is published for os ${platform} and cpu ${arch}; ` +
+        `supported: ${supportedPlatforms.join(', ')}`
+    );
+    this.name = 'UnsupportedPlatformError';
+    this.platform = platform;
+    this.arch = arch;
+  }
+}
+
+/** A binary is published for this os and cpu, but its platform package is not installed. */
+class PlatformPackageMissingError extends Error {
+  constructor(platform, arch, packageName) {
+    super(
+      `@ai-swfactory-oss/shfmt: ${packageName} is not installed for os ${platform} and cpu ${arch}; ` +
+        'reinstall without --omit=optional / --no-optional, or from a lockfile made on this platform'
+    );
+    this.name = 'PlatformPackageMissingError';
+    this.platform = platform;
+    this.arch = arch;
+    this.packageName = packageName;
+  }
+}
+
+/** Name of the platform package that carries the binary for this os and cpu. */
+function platformPackage(platform = process.platform, arch = process.arch) {
+  return `${PREFIX}${platform}-${arch}`;
+}
 
 /**
- * Absolute path of the native shfmt binary for this platform. Spawn it
- * directly; there is no node process in between.
+ * Absolute path of the native shfmt binary for this os and cpu. Spawn it directly: there is no node process in
+ * between. Throws UnsupportedPlatformError when no binary is published for them, and PlatformPackageMissingError
+ * when one is but its package is not installed.
  */
-function binaryPath() {
-  const key = `${process.platform}-${process.arch}`;
-  const name = `@ai-swfactory-oss/shfmt-${key}`;
+function binaryPath(platform = process.platform, arch = process.arch) {
+  if (!supportedPlatforms.includes(`${platform}-${arch}`)) throw new UnsupportedPlatformError(platform, arch);
+  const name = platformPackage(platform, arch);
   let dir;
   try {
     dir = path.dirname(require.resolve(`${name}/package.json`));
   } catch {
-    const why = SUPPORTED.includes(key)
-      ? `${name} is not installed (optional dependencies omitted, or a lockfile made on another platform?)`
-      : `no binary is published for ${key}; supported: ${SUPPORTED.join(', ')}`;
-    throw new Error(`@ai-swfactory-oss/shfmt: ${why}`);
+    throw new PlatformPackageMissingError(platform, arch, name);
   }
-  return path.join(dir, 'bin', 'shfmt');
+  return path.join(dir, 'bin', platform === 'win32' ? 'shfmt.exe' : 'shfmt');
 }
 
-module.exports = { binaryPath, version };
+module.exports = {
+  binaryPath,
+  platformPackage,
+  PlatformPackageMissingError,
+  supportedPlatforms,
+  UnsupportedPlatformError,
+  upstreamVersion,
+};

@@ -3,76 +3,113 @@
 [![update](https://github.com/ai-swfactory-oss/shfmt/actions/workflows/update.yml/badge.svg)](https://github.com/ai-swfactory-oss/shfmt/actions/workflows/update.yml)
 [![build](https://github.com/ai-swfactory-oss/shfmt/actions/workflows/build.yml/badge.svg)](https://github.com/ai-swfactory-oss/shfmt/actions/workflows/build.yml)
 
-[shfmt](https://github.com/mvdan/sh) (mvdan/sh) as npm packages: native binaries **built from source in GitHub Actions** from the upstream release tag, with upstream's own build command and Go version, one package per platform, updated and published automatically to GitHub Packages with build provenance attestations.
+[shfmt](https://github.com/mvdan/sh) (mvdan/sh) as npm packages: the **native upstream binary** per platform, updated and published automatically to GitHub Packages. No WASM, no download at install time, no install scripts.
 
-| Package | Contents |
+| Package | What |
 |---|---|
-| `@ai-swfactory-oss/shfmt` | Launcher: the `shfmt` command, plus `binaryPath()` and `version` for programs that spawn shfmt themselves. Depends on the four platform packages as exactly pinned optional dependencies; npm installs only the one matching `os`/`cpu`. |
-| `@ai-swfactory-oss/shfmt-linux-x64` | `bin/shfmt` for linux amd64 |
-| `@ai-swfactory-oss/shfmt-linux-arm64` | `bin/shfmt` for linux arm64 |
-| `@ai-swfactory-oss/shfmt-darwin-x64` | `bin/shfmt` for macOS amd64 |
-| `@ai-swfactory-oss/shfmt-darwin-arm64` | `bin/shfmt` for macOS arm64 |
+| `@ai-swfactory-oss/shfmt` | Thin: the `shfmt` bin, and `binaryPath()` / `upstreamVersion` for Node. Depends optionally on the five platform packages, pinned exactly. |
+| `@ai-swfactory-oss/shfmt-linux-x64` | `bin/shfmt` from upstream `shfmt_v<ver>_linux_amd64` |
+| `@ai-swfactory-oss/shfmt-linux-arm64` | `bin/shfmt` from upstream `shfmt_v<ver>_linux_arm64` |
+| `@ai-swfactory-oss/shfmt-darwin-x64` | `bin/shfmt` from upstream `shfmt_v<ver>_darwin_amd64` |
+| `@ai-swfactory-oss/shfmt-darwin-arm64` | `bin/shfmt` from upstream `shfmt_v<ver>_darwin_arm64` |
+| `@ai-swfactory-oss/shfmt-win32-x64` | `bin/shfmt.exe` from upstream `shfmt_v<ver>_windows_amd64.exe` |
 
-No install scripts. Windows is not packaged.
+npm installs only the platform package whose `os`/`cpu` match. The binaries are the unmodified upstream release assets, verified against the sha256 digests pinned in [`upstream.json`](upstream.json).
 
-## Installing
+## Install
 
-GitHub Packages requires a token even for public packages: a classic personal access token with `read:packages` (in GitHub Actions, `GITHUB_TOKEN` with `packages: read`). Point the scope at GitHub Packages and pass the token through the environment, never committed:
+The packages live on GitHub Packages, which needs two things even for public packages.
 
-```ini
-# .npmrc (this repository commits the same scope line)
-@ai-swfactory-oss:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-```
+1. The scope line, in your project's `.npmrc` (safe to commit):
+
+   ```
+   @ai-swfactory-oss:registry=https://npm.pkg.github.com
+   ```
+
+2. A token with `read:packages` (a classic personal access token), in your **user** `~/.npmrc`, never in the repository:
+
+   ```
+   //npm.pkg.github.com/:_authToken=<token>
+   ```
+
+   In GitHub Actions, use `actions/setup-node` with `registry-url: https://npm.pkg.github.com`, `scope: "@ai-swfactory-oss"` and `NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`, and grant the job `packages: read`.
+
+Then:
 
 ```sh
-export NODE_AUTH_TOKEN=...            # read:packages
-npm install @ai-swfactory-oss/shfmt   # or: npm install -g @ai-swfactory-oss/shfmt
+npm install --save-dev @ai-swfactory-oss/shfmt
+npx shfmt --version
+npx shfmt -d scripts/*.sh
 ```
 
-Do not install with `--omit=optional` / `--no-optional`: the binary lives in the optional platform package.
-
-## Usage
-
-```sh
-npx shfmt -d script.sh
-echo 'a=1' | npx shfmt --to-json
-```
-
-From code, spawn the binary directly; there is no node process in between:
+From Node, spawn the binary directly; there is no node process in between:
 
 ```js
-import { spawnSync } from 'node:child_process';
-import { binaryPath, version } from '@ai-swfactory-oss/shfmt';
+const { spawnSync } = require('node:child_process');
+const { binaryPath, upstreamVersion } = require('@ai-swfactory-oss/shfmt');
 
 const ast = spawnSync(binaryPath(), ['--to-json'], { input: 'a=1\n', encoding: 'utf8' });
 ```
 
-`binaryPath()` throws with an explanation when no platform package is installed for this `process.platform`/`process.arch`. `version` is the upstream shfmt version (for example `3.14.1`).
+- `binaryPath(platform = process.platform, arch = process.arch)` returns the absolute path of the binary.
+  - It throws `UnsupportedPlatformError` (with `platform` and `arch`) when no binary is published for that os and cpu.
+  - It throws `PlatformPackageMissingError` (with `platform`, `arch` and `packageName`) when one is published but its package is not installed, for example after `--omit=optional`.
+- `upstreamVersion` is the shfmt version the binary reports, for example `3.14.1` (`shfmt --version` prints `v3.14.1`).
+- `supportedPlatforms` lists the `<os>-<cpu>` pairs a binary is published for.
 
-## Versions and re-packs
+Installing with `--omit=optional` (or `--no-optional`) leaves no binary; `shfmt` then says so and exits 1.
 
-The npm version equals the upstream version: `@ai-swfactory-oss/shfmt@3.14.1` contains shfmt v3.14.1. In the rare case the packaging itself must change for an upstream version that is already published, the packages are re-published as `<upstream>-r.<n>` (for example `3.14.1-r.1`) by raising `revision` in `upstream.json` and running `scripts/set-version.sh`. A re-pack is built from the same tag and becomes the `latest` dist-tag. Note that semver orders `3.14.1-r.1` *below* `3.14.1`, so a range such as `^3.14.1` does not select it; pin it exactly, or install `@latest`.
+## Verify what you installed
 
-## Provenance
+The binaries are **upstream's release binaries, unmodified**. `scripts/fetch.sh` downloads each asset and refuses it unless its sha256 matches the digest pinned in [`upstream.json`](upstream.json). That digest comes from the GitHub API for the upstream release. Nothing is rebuilt.
 
-- `upstream.json` pins the upstream release: version, the commit its tag points at, and the Go version upstream's release notes name. `scripts/build.sh` clones the tag, fails unless it is that commit and the toolchain is that Go version, and builds each platform with upstream's release command, `CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" ./cmd/shfmt`. The tests check that the binary installed from the packed tarball is byte-for-byte the one built.
-- `upstream.json` also records the sha256 GitHub's API reports for each upstream release asset. Each build compares our binary with it and reports identical or differs, in the run summary and the release notes. A difference does not block a publish: the published binary is always our build.
-- Every binary and npm tarball gets a [build provenance attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations): `gh attestation verify <file> --repo ai-swfactory-oss/shfmt`.
-- Every platform package carries the mvdan/sh `LICENSE` (BSD-3-Clause) and `LICENSE-go` (Go's BSD license; the Go standard library is statically linked), taken from the upstream tag and from the Go release used to build.
-- Each GitHub release carries the binaries, the npm tarballs and `SHA256SUMS`.
+On top of that, every publish run creates **GitHub build-provenance attestations** ([`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance), SLSA provenance signed through Sigstore) for each npm tarball and each `shfmt` binary it publishes. Verify with the [GitHub CLI](https://cli.github.com/):
+
+```sh
+gh attestation verify node_modules/@ai-swfactory-oss/shfmt-linux-x64/bin/shfmt \
+  --repo ai-swfactory-oss/shfmt \
+  --signer-workflow ai-swfactory-oss/shfmt/.github/workflows/build.yml
+```
+
+To tie a binary back to upstream yourself, take the upstream asset named in the platform package's `NOTICE`. Check its sha256 against the digest there, then `cmp` it with the installed binary.
+
+The attestation proves that this repository's `build.yml` packaged the file from the named commit. It does not say who compiled shfmt: upstream did, and the pinned digest is what ties the binary to upstream's release.
+
+## Versions
+
+- The package version **equals the shfmt version** (`3.14.1`), for all six packages.
+- A **re-pack** of the same shfmt release (a packaging fix only, rare) is published as `<version>-r.<n>`, for example `3.14.1-r.1`. You get one by setting `"repack": <n>` in `upstream.json`.
+  - Semver orders `3.14.1-r.1` *below* `3.14.1`, so the publish job always passes the explicit dist-tag `latest`.
+  - A range like `^3.14.1` does not select a re-pack; pin it exactly if you need it.
+- Every published version has a GitHub release `v<package version>`.
 
 ## How it stays up to date (no maintenance)
 
 | Workflow | When | What |
 |---|---|---|
-| `update` | Daily 04:23 UTC, manual | Moves `upstream.json` and every package version to the latest mvdan/sh release (tag commit, Go version, upstream asset digests from the GitHub API) and commits. Then checks that every package of the current version is published; anything missing is built, tested and published. A failed publish is retried the next day. |
-| `build` | Push to `main` touching `upstream.json`, `packages/`, `scripts/` or the workflow; manual; called by `update` | Builds the four binaries from source and compares them with upstream's, packs the five packages, installs and tests them on linux x64/arm64 and macOS x64/arm64 (`shfmt --version`, `shfmt --to-json`, `binaryPath()`), attests provenance, publishes the packages not yet published (platform packages first) and creates the GitHub release. |
-| `pr` | Every pull request | Everything `build` does except publishing. |
+| `update` | Daily 04:23 UTC; keepalive on the 1st of each month | Reads `mvdan/sh` `releases/latest` (never a prerelease). If it is newer than `upstream.json`, it rewrites `upstream.json` with the asset names and the sha256 digests the GitHub API reports for them, and opens a pull request from `update/shfmt-<version>`. It then builds and tests that branch on every platform. Separately, if the GitHub release for main's version is missing, it runs `build` with publishing, so a failed publish is retried the next day. |
+| `build` | Push to `main` touching `upstream.json`, `scripts/`, `packages/`, `test/` or the workflow; manual; called by `update` | Runs the named digest-mismatch test, fetches the five assets (failing on any sha256 mismatch), stages the packages, runs the launcher tests and packs once. Each platform runner installs the packed tarballs into a scratch project. There it checks `binaryPath()`, the binary's sha256, `shfmt --version`, formatting and `--to-json`. Publishing (never on pull requests) attests every tarball and binary, then pushes the tested tarballs to GitHub Packages, platform packages first, skipping versions that already exist. Last, it creates the release. |
+| `pr` | Every pull request | `build` without publishing. |
 | `failures` | After every `update` or `build` run on `main` | A failure opens one issue labelled `build-failure` (or comments on the open one); the next successful run closes it. |
 
-When there is no upstream release for 45 days, `update` pushes an empty keepalive commit, so GitHub never disables the schedule. A failing run publishes nothing: the previous versions keep being served.
+A failing run publishes nothing new; the previous versions keep being served. Each release carries the npm tarballs as published, the original upstream binaries and `SHA256SUMS` over all of them.
+
+## Local build
+
+```sh
+bash test/digest-mismatch.sh                     # named test, offline
+bash scripts/fetch.sh build/upstream             # download + verify
+bash scripts/stage.sh build/upstream build/npm   # render the packages
+env SHFMT_LAUNCHER_DIR=build/npm/shfmt node --test test/launcher.test.js
+npm pack ./build/npm/shfmt ./build/npm/shfmt-*/ --pack-destination dist/tgz
+bash scripts/smoke.sh dist/tgz darwin-arm64      # install and test like CI
+```
+
+Needs `bash`, `curl`, `jq`, `tar` and Node.
 
 ## License
 
-The packaging code in this repository is MIT. shfmt is BSD-3-Clause (https://github.com/mvdan/sh/blob/master/LICENSE); the Go standard library linked into it is BSD-3-Clause (https://go.dev/LICENSE). The npm packages declare `BSD-3-Clause`.
+- The scripts and workflows in this repository are **MIT** (see [`LICENSE`](LICENSE)).
+- The **npm packages are BSD-3-Clause**, the license of shfmt (Copyright (c) 2016, Daniel Martí). Each platform package ships the upstream `LICENSE` and a `NOTICE`.
+
+This project is not affiliated with the mvdan/sh project.
