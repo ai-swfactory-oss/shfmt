@@ -1,0 +1,10 @@
+{
+  "files.readonlyInclude": {
+    ".gitattributes": true,
+    ".gitignore": true,
+    ".nvmrc": true,
+    ".vscode/settings.json": true,
+    "oxlint.config.ts": true,
+    "tsconfig.json": true
+  }
+}

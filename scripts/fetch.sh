@@ -1,22 +1,11 @@
 #!/usr/bin/env bash
-# Downloads the upstream shfmt release binaries named in upstream.json and
-# verifies each against its pinned sha256 digest. A binary whose digest does
-# not match is deleted and the script exits 1, so nothing unverified is staged,
-# packed or published.
 #
-#   scripts/fetch.sh <outdir> [platform ...]     (default: every platform)
 #
-# UPSTREAM_JSON overrides the manifest (default: upstream.json at the root);
-# UPSTREAM_BASE_URL and UPSTREAM_LICENSE_URL override where the release assets
-# and the LICENSE are downloaded from (the tests point them at local files).
 #
-# Result: <outdir>/assets/<asset name>   (the original upstream binary)
-#         <outdir>/<platform>/shfmt[.exe] (the same bytes, executable)
-#         <outdir>/LICENSE                (mvdan/sh's LICENSE at the tag)
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-manifest=${UPSTREAM_JSON:-$root/upstream.json}
+manifest=${UPSTREAM_JSON:-$root/packages/shfmt/src/upstream.json}
 out=${1:?usage: fetch.sh <outdir> [platform ...]}
 shift
 

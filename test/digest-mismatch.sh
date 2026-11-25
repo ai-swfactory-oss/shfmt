@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Named test: a release asset whose sha256 does not match the digest pinned in
-# upstream.json fails scripts/fetch.sh, which the build runs before it stages,
-# packs or publishes anything, and leaves no asset behind. The same asset with
-# its true digest is accepted, so the check is not vacuous. Runs offline: the
-# "release" is a local file.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -20,12 +15,12 @@ printf 'Copyright (c) 2016, Daniel Martí. All rights reserved.\n' >"$work/relea
 true_digest=$(sha256 "$work/release/shfmt_v9.9.9_linux_amd64")
 wrong_digest=$(printf '%064d' 0)
 
-manifest() { # <digest>
+manifest() {
   jq -n --arg d "sha256:$1" \
     '{version: "9.9.9", repack: 0, assets: {"linux-x64": {name: "shfmt_v9.9.9_linux_amd64", digest: $d}}}'
 }
 
-fetch() { # <manifest file> <outdir>
+fetch() {
   UPSTREAM_JSON=$1 UPSTREAM_BASE_URL="file://$work/release" UPSTREAM_LICENSE_URL="file://$work/release/LICENSE" \
     bash "$root/scripts/fetch.sh" "$2"
 }

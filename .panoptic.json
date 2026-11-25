@@ -1,0 +1,8 @@
+{
+  "version": 4,
+  "defaultBranch": "main",
+  "guard": {},
+  "packages": {
+    "@ai-swfactory-oss/shfmt": { "kind": "binary" }
+  }
+}

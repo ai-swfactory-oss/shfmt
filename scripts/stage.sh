@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# Single-quoted jq programs and Markdown backticks are literal on purpose.
-# shellcheck disable=SC2016
-# Renders the npm packages from the verified upstream release.
 #
-#   scripts/stage.sh <fetchdir> <outdir>
 #
-# <fetchdir> is the output of scripts/fetch.sh (every platform).
-# Result: <outdir>/shfmt            the launcher (bin, binaryPath(), upstreamVersion)
-#         <outdir>/shfmt-<platform> one package per platform binary
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-manifest=${UPSTREAM_JSON:-$root/upstream.json}
+manifest=${UPSTREAM_JSON:-$root/packages/shfmt/src/upstream.json}
 fetched=${1:?usage: stage.sh <fetchdir> <outdir>}
 out=${2:?usage: stage.sh <fetchdir> <outdir>}
 
@@ -21,16 +14,16 @@ upstream=$(jq -er .version "$manifest")
 version=$(bash "$root/scripts/pkgver.sh")
 read -r -a platforms <<<"$(jq -r '.assets | keys | join(" ")' "$manifest")"
 
-common='{
-  license: "BSD-3-Clause",
-  author: "ai-swfactory",
-  homepage: "https://github.com/ai-swfactory-oss/shfmt#readme",
-  bugs: { url: "https://github.com/ai-swfactory-oss/shfmt/issues" },
-  repository: { type: "git", url: $repo },
-  publishConfig: { registry: "https://npm.pkg.github.com" }
-}'
+common="{
+  license: \"BSD-3-Clause\",
+  author: \"ai-swfactory\",
+  homepage: \"https://github.com/ai-swfactory-oss/shfmt#readme\",
+  bugs: { url: \"https://github.com/ai-swfactory-oss/shfmt/issues\" },
+  repository: { type: \"git\", url: \$repo },
+  publishConfig: { registry: \"https://npm.pkg.github.com\" }
+}"
 
-notice() { # <package name> <asset lines>
+notice() {
   cat "$root/packages/NOTICE.in"
   printf '\nThis package: %s %s, re-packaged from shfmt v%s.\n' "$1" "$version" "$upstream"
   printf 'Upstream release: https://github.com/mvdan/sh/releases/tag/v%s\n\n' "$upstream"
@@ -60,11 +53,11 @@ for platform in "${platforms[@]}"; do
   notice "$name" "Binary: bin/$binary, unmodified upstream asset $asset ($digest)." >"$dir/NOTICE"
   {
     printf '# %s\n\n' "$name"
-    printf 'The native [shfmt](https://github.com/mvdan/sh) v%s binary for `%s` / `%s`.\n\n' "$upstream" "$os" "$cpu"
-    printf 'Do not install this package directly: install [`%s/shfmt`](https://github.com/ai-swfactory-oss/shfmt), which depends on it optionally and runs it.\n\n' "$scope"
-    printf 'The binary is the unmodified upstream release asset `%s` (`%s`).\n\n' "$asset" "$digest"
-    printf 'Provenance: `gh attestation verify bin/%s --repo ai-swfactory-oss/shfmt` (run in this package directory).\n\n' "$binary"
-    printf 'License: BSD-3-Clause (see `LICENSE` and `NOTICE`).\n'
+    printf "The native [shfmt](https://github.com/mvdan/sh) v%s binary for \`%s\` / \`%s\`.\n\n" "$upstream" "$os" "$cpu"
+    printf "Do not install this package directly: install [\`%s/shfmt\`](https://github.com/ai-swfactory-oss/shfmt), which depends on it optionally and runs it.\n\n" "$scope"
+    printf "The binary is the unmodified upstream release asset \`%s\` (\`%s\`).\n\n" "$asset" "$digest"
+    printf "Provenance: \`gh attestation verify bin/%s --repo ai-swfactory-oss/shfmt\` (run in this package directory).\n\n" "$binary"
+    printf "License: BSD-3-Clause (see \`LICENSE\` and \`NOTICE\`).\n"
   } >"$dir/README.md"
 
   jq -n --arg name "$name" --arg version "$version" --arg upstream "$upstream" \
@@ -83,15 +76,18 @@ for platform in "${platforms[@]}"; do
   optional=$(jq -c --arg n "$name" --arg v "$version" '. + {($n): $v}' <<<"$optional")
 done
 
+built="$root/packages/shfmt/dist"
+test -f "$built/index.js" || { echo "stage: $built/index.js is missing: build packages/shfmt first" >&2; exit 1; }
 launcher="$out/shfmt"
 mkdir -p "$launcher"
-cp -R "$root/packages/shfmt/." "$launcher/"
+cp -R "$built" "$launcher/dist"
+cp -R "$root/packages/shfmt/src" "$launcher/src"
+cp "$root/packages/shfmt/README.md" "$launcher/README.md"
 cp "$fetched/LICENSE" "$launcher/LICENSE"
 notice "$scope/shfmt" "This package holds no binary: it runs the one from $scope/shfmt-<platform>-<arch>." >"$launcher/NOTICE"
 jq --arg version "$version" --arg repo "$repo_url" --argjson optional "$optional" \
   ". + {version: \$version, optionalDependencies: \$optional} + $common" \
   "$root/packages/shfmt/package.json" >"$launcher/package.json"
-chmod 755 "$launcher/bin/shfmt.js"
 
 echo "stage: $version ($upstream) -> $out"
 ls -1 "$out"

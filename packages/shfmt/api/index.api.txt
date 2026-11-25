@@ -1,0 +1,8 @@
+BinaryLocation: interface BinaryLocation { readonly packageName: string; readonly binRelativePath: string; }
+Result: type Result<T, F> = { readonly ok: true; readonly value: T; } | { readonly failure: F; readonly ok: false; };
+UnsupportedPlatform: interface UnsupportedPlatform { readonly kind: 'unsupported-platform'; readonly platform: string; readonly arch: string; readonly supported: readonly string[]; }
+UpstreamPinInvalid: interface UpstreamPinInvalid { readonly kind: 'upstream-pin-invalid'; readonly file: string; readonly reason: string; }
+binaryPathOf: const binaryPathOf: (targets: readonly string[], platform: string, arch: string) => Result<BinaryLocation, UnsupportedPlatform>
+platformPackage: const platformPackage: (platform: string, arch: string) => string
+supportedPlatforms: const supportedPlatforms: () => Result<readonly string[], UpstreamPinInvalid>
+upstreamVersion: const upstreamVersion: () => Result<string, UpstreamPinInvalid>

@@ -1,6 +1,5 @@
 {
   "name": "@ai-swfactory-oss/shfmt",
-  "version": "0.0.0",
   "description": "shfmt (mvdan/sh), the shell parser, formatter and interpreter, as the unmodified native upstream binary per platform",
   "keywords": [
     "shfmt",
@@ -9,20 +8,35 @@
     "formatter",
     "parser"
   ],
-  "main": "index.js",
-  "types": "index.d.ts",
-  "bin": {
-    "shfmt": "bin/shfmt.js"
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ai-swfactory-oss/shfmt.git",
+    "directory": "packages/shfmt"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "bin/shfmt.js",
-    "index.js",
-    "index.d.ts",
+    "dist",
+    "src",
+    "!dist/**/*.tgz",
     "LICENSE",
     "NOTICE",
     "README.md"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20.10"
   }
 }

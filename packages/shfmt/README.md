@@ -22,24 +22,22 @@ In GitHub Actions, `actions/setup-node` with `registry-url: https://npm.pkg.gith
 
 ```sh
 npm install --save-dev @ai-swfactory-oss/shfmt
-npx shfmt --version
 ```
 
 ## Use
 
-```sh
-shfmt -d script.sh
-```
-
-From Node, spawn the binary directly:
+This package declares no bin and touches no host: it says, as data, which package carries the binary for an os and cpu and where the binary sits inside it. Resolving that package, joining the path and running the binary is the caller's.
 
 ```js
-const { binaryPath, upstreamVersion } = require('@ai-swfactory-oss/shfmt');
-// binaryPath(): absolute path to the native shfmt binary for this os and cpu
-// upstreamVersion: the shfmt version, e.g. "3.14.1"
+import { binaryPathOf, platformPackage, supportedPlatforms, upstreamVersion } from '@ai-swfactory-oss/shfmt'
+// supportedPlatforms(): { ok: true, value: ['linux-x64', 'linux-arm64', ...] }, the keys of upstream.json assets
+// upstreamVersion():    { ok: true, value: '3.14.1' }, the shfmt version pinned in upstream.json
+// binaryPathOf(targets, 'linux', 'x64'):
+//   { ok: true, value: { packageName: '@ai-swfactory-oss/shfmt-linux-x64', binRelativePath: 'bin/shfmt' } }
+// platformPackage('win32', 'x64'): '@ai-swfactory-oss/shfmt-win32-x64'
 ```
 
-`binaryPath()` throws `UnsupportedPlatformError` (with `platform` and `arch`) when no binary is published for this os and cpu, and `PlatformPackageMissingError` when one is but its package was not installed (for example with `--omit=optional`).
+The package is ESM only. No function throws: a failure is returned as `{ ok: false, failure }`. `binaryPathOf` fails with kind `unsupported-platform` (with `platform`, `arch` and `supported`) when no target covers the os and cpu. A missing or invalid `upstream.json` fails with kind `upstream-pin-invalid`, naming the file.
 
 ## Verify
 
